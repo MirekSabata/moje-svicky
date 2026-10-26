@@ -1,0 +1,233 @@
+
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nákupy a sklad – Moje svíčky</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f8f5f1;color:#332b27;font:15px Arial,sans-serif}
+header{background:white;border-bottom:1px solid #eadfd5;padding:18px 5%;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+main{max-width:1100px;margin:auto;padding:22px}
+h1,h2{color:#744a36}
+h1{font-size:23px;margin:0}h2{font-size:19px}
+.card{background:white;border:1px solid #eadfd5;border-radius:12px;padding:18px;margin-bottom:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+label{display:block;margin:10px 0 5px;font-size:13px;color:#665449}
+input,select,textarea{width:100%;padding:10px;border:1px solid #d8ccc1;border-radius:7px;font:inherit}
+button{background:#81583f;color:white;border:0;border-radius:8px;padding:11px 15px;cursor:pointer}
+.secondary{background:#eee4db;color:#543c2c}
+.row{display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:8px;align-items:end;margin:10px 0}
+.stat{background:#f1e9e1;padding:14px;border-radius:9px}
+.num{font-size:24px;font-weight:bold;color:#744a36;margin-top:5px}
+.muted{font-size:13px;color:#806f63}
+.notice{white-space:pre-wrap;background:#f1e9e1;padding:12px;border-radius:8px;margin:12px 0}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:10px;border-bottom:1px solid #eee2d8;font-size:14px}
+.wrap{overflow-x:auto}
+.hidden{display:none!important}
+@media(max-width:650px){main{padding:12px}.row{grid-template-columns:1fr 1fr}.row .material{grid-column:1/-1}}
+</style>
+</head>
+<body>
+<header>
+  <h1>🕯️ Moje svíčky · Nákupy a sklad</h1>
+  <div>
+    <a href="/" style="color:#744a36;margin-right:12px">Hlavní aplikace</a>
+    <button onclick="logout()">Odhlásit</button>
+  </div>
+</header>
+<main>
+<section id="login" class="card hidden">
+<h2>Přihlášení</h2>
+<p class="muted">Použij stejný účet jako v hlavní aplikaci.</p>
+<label>E-mail</label><input id="email" type="email">
+<label>Heslo</label><input id="password" type="password">
+<button style="margin-top:12px" onclick="login()">Přihlásit se</button>
+</section>
+
+<section id="content" class="hidden">
+<div id="notice" class="notice hidden"></div>
+<div class="grid">
+  <div class="stat"><div class="muted">Počet materiálů</div><div class="num" id="materialCount">0</div></div>
+  <div class="stat"><div class="muted">Nákupní doklady</div><div class="num" id="purchaseCount">0</div></div>
+  <div class="stat"><div class="muted">Hodnota evidovaných nákupů</div><div class="num" id="purchaseValue">0 Kč</div></div>
+</div>
+
+<div class="card">
+<h2>1. Nový nákup</h2>
+<p class="muted">Jeden doklad může obsahovat více položek. Pro nákup jedné věci vyplň pouze jeden řádek.</p>
+<label>Datum nákupu</label><input id="purchaseDate" type="date">
+<div class="grid">
+<div><label>Dodavatel</label><input id="supplier" placeholder="Např. dodavatel vosku"></div>
+<div><label>Číslo dokladu (volitelné)</label><input id="documentNo"></div>
+</div>
+<label>Poznámka</label><input id="purchaseNote" placeholder="Volitelná poznámka">
+<h3>Položky dokladu</h3>
+<div id="items"></div>
+<button class="secondary" type="button" onclick="addRow()">+ Přidat položku</button>
+<p>Celkem: <strong id="total">0,00 Kč</strong></p>
+<button onclick="savePurchase()">Uložit nákup a přijmout na sklad</button>
+</div>
+
+<div class="card">
+<h2>2. Aktuální sklad materiálů</h2>
+<p class="muted">Zůstatek se počítá z evidovaných nákupů a skladových pohybů. Počáteční zásoby lze doplnit samostatným počátečním nákupem.</p>
+<div class="wrap"><table><thead><tr><th>Materiál</th><th>Jednotka</th><th>Zásoba</th><th>Poslední cena/jednotku</th></tr></thead><tbody id="stock"></tbody></table></div>
+</div>
+
+<div class="card">
+<h2>3. Historie nákupů</h2>
+<div class="wrap"><table><thead><tr><th>Datum</th><th>Dodavatel</th><th>Doklad</th><th>Počet položek</th><th>Celkem</th></tr></thead><tbody id="history"></tbody></table></div>
+</div>
+
+<div class="card">
+<h2>4. Přidat nový materiál</h2>
+<p class="muted">Materiál vytvoř pouze jednou. Další nákupy stejného materiálu vybírej z existujícího seznamu.</p>
+<div class="grid">
+<div><label>Název</label><input id="newName" placeholder="Např. sójový vosk"></div>
+<div><label>Jednotka</label><select id="newUnit"><option value="g">g – gramy</option><option value="ml">ml – mililitry</option><option value="ks">ks – kusy</option><option value="balení">balení</option></select></div>
+<div><label>Počáteční cena za jednotku (Kč)</label><input id="newPrice" type="number" min="0" step=".0001" value="0"></div>
+</div>
+<button style="margin-top:12px" onclick="addMaterial()">Uložit materiál</button>
+</div>
+</section>
+</main>
+
+<script>
+const URL='https://sixybdwllzehyijilzqq.supabase.co';
+const KEY='sb_publishable_y1LtelxOKUMEnVCq4SqybA__Tqrsq_8';
+const db=window.supabase.createClient(URL,KEY);
+let materials=[],rows=0;
+
+const $=id=>document.getElementById(id);
+const money=n=>Number(n||0).toLocaleString('cs-CZ',{style:'currency',currency:'CZK'});
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function msg(t){$('notice').textContent=t;$('notice').classList.remove('hidden')}
+function clearMsg(){$('notice').classList.add('hidden')}
+
+async function login(){
+ const {error}=await db.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});
+ if(error){alert('Přihlášení se nezdařilo: '+error.message);return}
+ await init();
+}
+async function logout(){await db.auth.signOut();location.reload()}
+
+function addRow(){
+ const id=++rows;
+ const row=document.createElement('div');
+ row.className='row';row.dataset.row=id;
+ row.innerHTML=`
+ <div class="material"><label>Materiál</label><select class="mat" required></select></div>
+ <div><label>Množství</label><input class="qty" type="number" min="0.001" step="any" value="1" required></div>
+ <div><label>Jednotková cena Kč</label><input class="price" type="number" min="0" step="any" value="0" required></div>
+ <div><label>Celkem Kč</label><input class="line" type="number" readonly value="0"></div>
+ <div><button type="button" class="secondary remove">×</button></div>`;
+ $('items').appendChild(row);
+ const sel=row.querySelector('.mat');
+ sel.innerHTML='<option value="">Vyber materiál</option>'+materials.map(m=>`<option value="${m.id}" data-unit="${esc(m.unit)}" data-price="${m.price_per_unit}">${esc(m.name)} (${esc(m.unit)})</option>`).join('');
+ sel.addEventListener('change',()=>{
+  const opt=sel.selectedOptions[0];
+  row.querySelector('.price').value=opt?.dataset.price||0;
+  updateRow(row);
+ });
+ row.querySelector('.qty').addEventListener('input',()=>updateRow(row));
+ row.querySelector('.price').addEventListener('input',()=>updateRow(row));
+ row.querySelector('.remove').addEventListener('click',()=>{row.remove();updateTotal()});
+ updateTotal();
+}
+function updateRow(row){
+ row.querySelector('.line').value=(Number(row.querySelector('.qty').value)||0)*(Number(row.querySelector('.price').value)||0);
+ updateTotal();
+}
+function updateTotal(){
+ let sum=0;
+ document.querySelectorAll('.line').forEach(x=>sum+=Number(x.value)||0);
+ $('total').textContent=money(sum);
+}
+async function loadMaterials(){
+ const {data,error}=await db.from('materials').select('*').order('name');
+ if(error)throw error;
+ materials=data||[];
+}
+async function addMaterial(){
+ clearMsg();
+ const name=$('newName').value.trim(),unit=$('newUnit').value,price=Number($('newPrice').value);
+ if(!name||price<0){msg('Vyplň název a platnou cenu.');return}
+ const {error}=await db.from('materials').insert({name,unit,price_per_unit:price});
+ if(error){msg('Materiál se nepodařilo uložit: '+error.message);return}
+ $('newName').value='';$('newPrice').value='0';
+ await refresh();msg('Materiál byl uložen.');
+}
+async function savePurchase(){
+ clearMsg();
+ const lines=[...document.querySelectorAll('#items .row')];
+ if(!lines.length){msg('Přidej alespoň jednu položku.');return}
+ const entries=[];
+ for(const row of lines){
+  const materialId=row.querySelector('.mat').value;
+  const opt=row.querySelector('.mat').selectedOptions[0];
+  const qty=Number(row.querySelector('.qty').value);
+  const price=Number(row.querySelector('.price').value);
+  if(!materialId||!Number.isFinite(qty)||qty<=0||!Number.isFinite(price)||price<0){
+   msg('Zkontroluj materiál, množství a jednotkovou cenu u všech položek.');return
+  }
+  entries.push({material_id:materialId,quantity:qty,unit:opt.dataset.unit,unit_price:price,total_price:Math.round(qty*price*100)/100});
+ }
+ const {data:p,error:pe}=await db.from('purchases').insert({
+  purchased_at:$('purchaseDate').value||new Date().toISOString().slice(0,10),
+  supplier:$('supplier').value.trim()||null,
+  document_number:$('documentNo').value.trim()||null,
+  notes:$('purchaseNote').value.trim()||null
+ }).select().single();
+ if(pe){msg('Nákup se nepodařilo uložit: '+pe.message);return}
+ const itemRows=entries.map(x=>({...x,purchase_id:p.id}));
+ const {data:saved,error:ie}=await db.from('purchase_items').insert(itemRows).select();
+ if(ie){msg('Doklad byl vytvořen, ale položky se nepodařilo uložit. Nemaž ho; pošli mi tuto chybu: '+ie.message);return}
+ const moves=saved.map(x=>({
+  material_id:x.material_id,purchase_item_id:x.id,
+  movement_type:'purchase',quantity_delta:x.quantity,unit:x.unit,unit_cost:x.unit_price
+ }));
+ const {error:me}=await db.from('stock_movements').insert(moves);
+ if(me){msg('Položky nákupu jsou uloženy, ale příjem na sklad se nepodařil. Nákup neopakuj. Pošli mi chybu: '+me.message);return}
+ $('items').innerHTML='';rows=0;addRow();
+ $('supplier').value='';$('documentNo').value='';$('purchaseNote').value='';
+ await refresh();msg('Nákup byl uložen a materiál přijat na sklad.');
+}
+async function refresh(){
+ await loadMaterials();
+ $('materialCount').textContent=materials.length;
+ const {data:ps,error:pe}=await db.from('purchases').select('*,purchase_items(id,total_price)').order('purchased_at',{ascending:false});
+ if(pe)throw pe;
+ $('purchaseCount').textContent=ps.length;
+ $('purchaseValue').textContent=money(ps.reduce((s,p)=>s+(p.purchase_items||[]).reduce((a,i)=>a+Number(i.total_price||0),0),0));
+ $('history').innerHTML=ps.map(p=>{
+  const items=p.purchase_items||[];
+  const total=items.reduce((s,i)=>s+Number(i.total_price||0),0);
+  return `<tr><td>${esc(p.purchased_at)}</td><td>${esc(p.supplier||'—')}</td><td>${esc(p.document_number||'—')}</td><td>${items.length}</td><td>${money(total)}</td></tr>`;
+ }).join('')||'<tr><td colspan="5">Zatím žádné nákupy.</td></tr>';
+ const {data:ms,error:me}=await db.from('stock_movements').select('material_id,quantity_delta,unit_cost');
+ if(me)throw me;
+ $('stock').innerHTML=materials.map(m=>{
+  const moves=ms.filter(x=>x.material_id===m.id);
+  const qty=moves.reduce((s,x)=>s+Number(x.quantity_delta),0);
+  const purchases=moves.filter(x=>x.quantity_delta>0);
+  const last=purchases.length?purchases[purchases.length-1].unit_cost:m.price_per_unit;
+  return `<tr><td>${esc(m.name)}</td><td>${esc(m.unit)}</td><td>${qty.toLocaleString('cs-CZ',{maximumFractionDigits:3})} ${esc(m.unit)}</td><td>${money(last)} / ${esc(m.unit)}</td></tr>`;
+ }).join('')||'<tr><td colspan="4">Zatím nejsou evidované materiály.</td></tr>';
+}
+async function init(){
+ const {data:{session}}=await db.auth.getSession();
+ if(!session){$('login').classList.remove('hidden');$('content').classList.add('hidden');return}
+ $('login').classList.add('hidden');$('content').classList.remove('hidden');
+ $('purchaseDate').value=new Date().toISOString().slice(0,10);
+ try{await refresh();if(!document.querySelector('#items .row'))addRow()}
+ catch(e){msg('Chyba při načítání: '+e.message)}
+}
+db.auth.onAuthStateChange((_event,session)=>{if(session)setTimeout(()=>init(),0)});
+init();
+</script>
+</body>
+</html>
