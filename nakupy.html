@@ -97,9 +97,9 @@ th,td{text-align:left;padding:10px;border-bottom:1px solid #eee2d8;font-size:14p
 </main>
 
 <script>
-const URL='https://sixybdwllzehyijilzqq.supabase.co';
-const KEY='sb_publishable_y1LtelxOKUMEnVCq4SqybA__Tqrsq_8';
-const db=window.supabase.createClient(URL,KEY);
+const SUPABASE_URL = 'https://sixybdwllzehyijilzqq.supabase.co';
+const SUPABASE_KEY = 'SEM_VLOŽ_SVŮJ_STÁVAJÍCÍ_PUBLISHABLE_KEY';
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let materials=[],rows=0;
 
 const $=id=>document.getElementById(id);
