@@ -1,0 +1,178 @@
+
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Moje svíčky</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{font-family:Arial,sans-serif;color:#332b27;background:#f8f5f1}
+*{box-sizing:border-box}body{margin:0}header{background:#fff;padding:18px 5%;border-bottom:1px solid #e7ddd4;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+h1{font-size:24px;margin:0;color:#744a36}h2{font-size:20px}main{max-width:1150px;margin:auto;padding:24px}
+nav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px}
+button{background:#81583f;color:white;border:0;border-radius:8px;padding:11px 15px;cursor:pointer;font-weight:600}
+button.secondary{background:#eee4db;color:#543c2c}button:disabled{opacity:.5}
+input,select,textarea{width:100%;padding:11px;border:1px solid #d8ccc1;border-radius:7px;background:white;font:inherit}
+label{display:block;font-size:13px;margin:10px 0 5px;color:#665449}
+.card{background:white;border:1px solid #eadfd5;border-radius:12px;padding:18px;margin-bottom:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}
+.muted{color:#806f63;font-size:13px}.hidden{display:none!important}.status{padding:12px;background:#f0e7dd;border-radius:8px;margin:12px 0;white-space:pre-wrap}
+table{border-collapse:collapse;width:100%;background:white}th,td{text-align:left;padding:10px;border-bottom:1px solid #eee2d8;font-size:14px}
+.tablewrap{overflow:auto}.price{font-size:24px;color:#744a36;font-weight:bold}
+#login{max-width:430px;margin:8vh auto;padding:25px}
+@media(max-width:600px){main{padding:12px}header{padding:15px}h1{font-size:20px}}
+</style>
+</head>
+<body>
+<header><h1>🕯️ Moje svíčky</h1><div id="who" class="muted"></div></header>
+<main>
+<section id="login" class="card">
+<h2>Vítej ve své dílně</h2>
+<p class="muted">Přihlas se do své soukromé evidence svíček.</p>
+<label>E-mail</label><input id="email" type="email" autocomplete="username" placeholder="Tvůj e-mail">
+<label>Heslo</label><input id="password" type="password" autocomplete="current-password">
+<button style="margin-top:16px;width:100%" onclick="signIn()">Přihlásit se</button>
+<div id="loginMsg" class="status hidden"></div>
+</section>
+<section id="app" class="hidden">
+<nav>
+<button onclick="showTab('home')">Přehled</button>
+<button onclick="showTab('candles')">Katalog svíček</button>
+<button onclick="showTab('materials')">Materiály</button>
+<button onclick="showTab('batches')">Výroba a sklad</button>
+<button class="secondary" onclick="signOut()">Odhlásit</button>
+</nav>
+<div id="notice" class="status hidden"></div>
+<section id="tab-home">
+<h2>Přehled dílny</h2>
+<div class="grid">
+<div class="card"><div class="muted">Druhy svíček</div><div class="price" id="countCandles">0</div></div>
+<div class="card"><div class="muted">Výrobní dávky</div><div class="price" id="countBatches">0</div></div>
+<div class="card"><div class="muted">Kusy na skladě</div><div class="price" id="stock">0</div></div>
+</div>
+<p class="muted">Nejprve přidej druhy svíček a materiály. Potom můžeš evidovat výrobu.</p>
+</section>
+<section id="tab-candles" class="hidden">
+<div class="card"><h2>Nová svíčka</h2>
+<form id="candleForm">
+<div class="grid">
+<div><label>Název</label><input name="name" required placeholder="Např. Srdce"></div>
+<div><label>Hmotnost (g)</label><input name="weight_g" type="number" min="0" step=".1" required></div>
+<div><label>Doporučená prodejní cena (Kč)</label><input name="suggested_price" type="number" min="0" step="1" value="150"></div>
+</div>
+<label>Popis</label><textarea name="description" rows="2"></textarea>
+<button style="margin-top:12px">Uložit svíčku</button>
+</form></div>
+<div class="card"><h2>Katalog</h2><div id="candlesList"></div></div>
+</section>
+<section id="tab-materials" class="hidden">
+<div class="card"><h2>Přidat materiál</h2>
+<form id="materialForm">
+<div class="grid">
+<div><label>Název materiálu</label><input name="name" required placeholder="Vosk, knot, vůně..."></div>
+<div><label>Jednotka</label><select name="unit"><option value="g">g</option><option value="ks">ks</option><option value="ml">ml</option><option value="balení">balení</option></select></div>
+<div><label>Cena za jednotku (Kč)</label><input name="price_per_unit" type="number" min="0" step=".0001" required></div>
+</div><button style="margin-top:12px">Uložit materiál</button>
+</form></div>
+<div class="card"><h2>Seznam materiálů</h2><div id="materialsList"></div></div>
+</section>
+<section id="tab-batches" class="hidden">
+<div class="card"><h2>Zaznamenat výrobu</h2>
+<form id="batchForm">
+<label>Druh svíčky</label><select name="candle_id" id="candleSelect" required></select>
+<div class="grid">
+<div><label>Barva této dávky</label><input name="color" required placeholder="Např. krémová"></div>
+<div><label>Počet vyrobených kusů</label><input name="quantity" type="number" min="1" step="1" required></div>
+<div><label>Datum výroby</label><input name="produced_at" type="date" required></div>
+<div><label>Čas výroby celé dávky (minuty)</label><input name="labor_minutes" type="number" min="0" step="1" value="0"></div>
+<div><label>Hodinová sazba práce (Kč)</label><input name="hourly_rate" type="number" min="0" step="1" value="240"></div>
+<div><label>Režie za hodinu (Kč)</label><input name="overhead_per_hour" type="number" min="0" step="1" value="0"></div>
+<div><label>Celkové materiálové náklady dávky (Kč)</label><input name="material_cost_total" type="number" min="0" step=".01" value="0"></div>
+</div>
+<label>Poznámka</label><textarea name="notes" rows="2"></textarea>
+<button style="margin-top:12px">Zapsat výrobu do skladu</button>
+</form>
+<p class="muted">Náklad na práci se rozdělí podle počtu kusů v dávce. Materiálové náklady zatím zadáváš za celou dávku.</p>
+</div>
+<div class="card"><h2>Výrobní dávky a sklad</h2><div id="batchesList"></div></div>
+</section>
+</section>
+</main>
+<script>
+const SUPABASE_URL = 'https://sixybdwllzehyijilzqq.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_y1LtelxOKUMEnVCq4SqybA__Tqrsq_8';
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let currentUser=null, candles=[], materials=[], batches=[];
+const $=id=>document.getElementById(id);
+function message(id,text){$(id).textContent=text;$(id).classList.remove('hidden')}
+function notice(text){message('notice',text)}
+function money(v){return Number(v||0).toLocaleString('cs-CZ',{style:'currency',currency:'CZK'})}
+async function signIn(){
+ const email=$('email').value.trim(),password=$('password').value;
+ $('loginMsg').classList.add('hidden');
+ const {error}=await db.auth.signInWithPassword({email,password});
+ if(error){message('loginMsg','Přihlášení se nepodařilo: '+error.message);return}
+ await init();
+}
+async function signOut(){await db.auth.signOut();location.reload()}
+function showTab(tab){
+ ['home','candles','materials','batches'].forEach(t=>$('tab-'+t).classList.toggle('hidden',t!==tab));
+}
+function safe(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+async function loadAll(){
+ let results=await Promise.all([
+ db.from('candles').select('*').order('created_at',{ascending:false}),
+ db.from('materials').select('*').order('name'),
+ db.from('batches').select('*,candles(name,weight_g,suggested_price)').order('created_at',{ascending:false})
+ ]);
+ for(let r of results){if(r.error)throw r.error}
+ candles=results[0].data||[];materials=results[1].data||[];batches=results[2].data||[];
+ render();
+}
+function render(){
+ $('countCandles').textContent=candles.length;
+ $('countBatches').textContent=batches.length;
+ $('stock').textContent=batches.reduce((s,b)=>s+Number(b.quantity||0),0);
+ $('candlesList').innerHTML=candles.length?'<div class="tablewrap"><table><tr><th>Název</th><th>Hmotnost</th><th>Doporučená cena</th></tr>'+candles.map(c=>`<tr><td>${safe(c.name)}</td><td>${c.weight_g} g</td><td>${money(c.suggested_price)}</td></tr>`).join('')+'</table></div>':'<p class="muted">Zatím tu nejsou žádné svíčky.</p>';
+ $('materialsList').innerHTML=materials.length?'<div class="tablewrap"><table><tr><th>Materiál</th><th>Jednotka</th><th>Cena/jednotku</th></tr>'+materials.map(m=>`<tr><td>${safe(m.name)}</td><td>${safe(m.unit)}</td><td>${money(m.price_per_unit)}</td></tr>`).join('')+'</table></div>':'<p class="muted">Zatím tu nejsou žádné materiály.</p>';
+ $('candleSelect').innerHTML='<option value="">Vyber svíčku</option>'+candles.map(c=>`<option value="${c.id}">${safe(c.name)} (${c.weight_g} g)</option>`).join('');
+ $('batchesList').innerHTML=batches.length?'<div class="tablewrap"><table><tr><th>Datum</th><th>Svíčka</th><th>Barva</th><th>Kusy</th><th>Náklad/kus</th><th>Prodejní cena</th></tr>'+batches.map(b=>{
+ const labor=Number(b.labor_minutes)*Number(b.hourly_rate)/60;
+ const overhead=Number(b.labor_minutes)*Number(b.overhead_per_hour)/60;
+ const unitCost=(Number(b.material_cost_total)+labor+overhead)/Number(b.quantity);
+ return `<tr><td>${safe(b.produced_at)}</td><td>${safe(b.candles?.name||'')}</td><td>${safe(b.color)}</td><td>${b.quantity}</td><td>${money(unitCost)}</td><td>${money(b.candles?.suggested_price||0)}</td></tr>`
+ }).join('')+'</table></div>':'<p class="muted">Zatím tu nejsou žádné dávky.</p>';
+}
+$('candleForm').addEventListener('submit',async e=>{
+ e.preventDefault();const f=new FormData(e.target);
+ const row={name:f.get('name'),weight_g:Number(f.get('weight_g')),suggested_price:Number(f.get('suggested_price')),description:f.get('description')||null};
+ const {error}=await db.from('candles').insert(row);if(error){notice('Chyba: '+error.message);return}
+ e.target.reset();await loadAll();notice('Svíčka byla uložena.');
+});
+$('materialForm').addEventListener('submit',async e=>{
+ e.preventDefault();const f=new FormData(e.target);
+ const {error}=await db.from('materials').insert({name:f.get('name'),unit:f.get('unit'),price_per_unit:Number(f.get('price_per_unit'))});
+ if(error){notice('Chyba: '+error.message);return}
+ e.target.reset();await loadAll();notice('Materiál byl uložen.');
+});
+$('batchForm').addEventListener('submit',async e=>{
+ e.preventDefault();const f=new FormData(e.target);
+ const row={candle_id:f.get('candle_id'),color:f.get('color'),quantity:Number(f.get('quantity')),produced_at:f.get('produced_at'),labor_minutes:Number(f.get('labor_minutes')||0),hourly_rate:Number(f.get('hourly_rate')||240),overhead_per_hour:Number(f.get('overhead_per_hour')||0),material_cost_total:Number(f.get('material_cost_total')||0),notes:f.get('notes')||null};
+ const {error}=await db.from('batches').insert(row);if(error){notice('Chyba: '+error.message);return}
+ e.target.reset();e.target.elements.hourly_rate.value=240;e.target.elements.produced_at.value=new Date().toISOString().slice(0,10);await loadAll();notice('Výroba byla zapsána.');
+});
+async function init(){
+ const {data:{user}}=await db.auth.getUser();currentUser=user;
+ if(!user){$('app').classList.add('hidden');$('login').classList.remove('hidden');return}
+ $('login').classList.add('hidden');$('app').classList.remove('hidden');$('who').textContent=user.email;
+ $('batchForm').elements.produced_at.value=new Date().toISOString().slice(0,10);
+ try{await loadAll()}catch(e){notice('Nepodařilo se načíst data: '+e.message)}
+}
+db.auth.onAuthStateChange((_event,session)=>{
+ if(session?.user){setTimeout(()=>init(),0)}
+});
+init();
+</script>
+</body>
+</html>
