@@ -105,6 +105,23 @@ const SUPABASE_URL = 'https://sixybdwllzehyijilzqq.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_y1LtelxOKUMEnVCq4SqybA__Tqrsq_8';
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let currentUser=null, candles=[], materials=[], batches=[];
+ let workshopId = null;
+
+async function loadWorkshop() {
+  const { data: { user }, error: userError } = await db.auth.getUser();
+  if (userError) throw userError;
+  if (!user) throw new Error('Nejsi přihlášený.');
+
+  const { data, error } = await db
+    .from('workshop_members')
+    .select('workshop_id')
+    .eq('user_id', user.id)
+    .limit(1)
+    .single();
+
+  if (error) throw error;
+  workshopId = data.workshop_id;
+}
 const $=id=>document.getElementById(id);
 function message(id,text){$(id).textContent=text;$(id).classList.remove('hidden')}
 function notice(text){message('notice',text)}
@@ -147,25 +164,26 @@ function render(){
 }
 $('candleForm').addEventListener('submit',async e=>{
  e.preventDefault();const f=new FormData(e.target);
- const row={name:f.get('name'),weight_g:Number(f.get('weight_g')),suggested_price:Number(f.get('suggested_price')),description:f.get('description')||null};
+ const row={workshop_id: workshopId, name:f.get('name'),weight_g:Number(f.get('weight_g')),suggested_price:Number(f.get('suggested_price')),description:f.get('description')||null};
  const {error}=await db.from('candles').insert(row);if(error){notice('Chyba: '+error.message);return}
  e.target.reset();await loadAll();notice('Svíčka byla uložena.');
 });
 $('materialForm').addEventListener('submit',async e=>{
  e.preventDefault();const f=new FormData(e.target);
- const {error}=await db.from('materials').insert({name:f.get('name'),unit:f.get('unit'),price_per_unit:Number(f.get('price_per_unit'))});
+ const {error}=await db.from('materials').insert({workshop_id: workshopId, name:f.get('name'),unit:f.get('unit'),price_per_unit:Number(f.get('price_per_unit'))});
  if(error){notice('Chyba: '+error.message);return}
  e.target.reset();await loadAll();notice('Materiál byl uložen.');
 });
 $('batchForm').addEventListener('submit',async e=>{
  e.preventDefault();const f=new FormData(e.target);
- const row={candle_id:f.get('candle_id'),color:f.get('color'),quantity:Number(f.get('quantity')),produced_at:f.get('produced_at'),labor_minutes:Number(f.get('labor_minutes')||0),hourly_rate:Number(f.get('hourly_rate')||240),overhead_per_hour:Number(f.get('overhead_per_hour')||0),material_cost_total:Number(f.get('material_cost_total')||0),notes:f.get('notes')||null};
+ const row={workshop_id: workshopId, candle_id:f.get('candle_id'),color:f.get('color'),quantity:Number(f.get('quantity')),produced_at:f.get('produced_at'),labor_minutes:Number(f.get('labor_minutes')||0),hourly_rate:Number(f.get('hourly_rate')||240),overhead_per_hour:Number(f.get('overhead_per_hour')||0),material_cost_total:Number(f.get('material_cost_total')||0),notes:f.get('notes')||null};
  const {error}=await db.from('batches').insert(row);if(error){notice('Chyba: '+error.message);return}
  e.target.reset();e.target.elements.hourly_rate.value=240;e.target.elements.produced_at.value=new Date().toISOString().slice(0,10);await loadAll();notice('Výroba byla zapsána.');
 });
 async function init(){
  const {data:{user}}=await db.auth.getUser();currentUser=user;
  if(!user){$('app').classList.add('hidden');$('login').classList.remove('hidden');return}
+ try { await loadWorkshop(); } catch(e) { message('loginMsg','Nepodařilo se načíst společnou dílnu: '+e.message); return; }
  $('login').classList.add('hidden');$('app').classList.remove('hidden');$('who').textContent=user.email;
  $('batchForm').elements.produced_at.value=new Date().toISOString().slice(0,10);
  try{await loadAll()}catch(e){notice('Nepodařilo se načíst data: '+e.message)}
