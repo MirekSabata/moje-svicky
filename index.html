@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="cs">
 <head>
@@ -7,7 +6,7 @@
 <title>Moje svíčky</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link rel="stylesheet" href="css/style.css">
-
+<link rel="stylesheet" href="css/recipes.css">
 </head>
 <body>
 <header><h1>🕯️ Moje svíčky</h1><div id="who" class="muted"></div></header>
@@ -17,17 +16,18 @@
 <p class="muted">Přihlas se do své soukromé evidence svíček.</p>
 <label>E-mail</label><input id="email" type="email" autocomplete="username" placeholder="Tvůj e-mail">
 <label>Heslo</label><input id="password" type="password" autocomplete="current-password">
-<button style="margin-top:16px;width:100%" onclick="signIn()">Přihlásit se</button>
+<button id="loginButton" style="margin-top:16px;width:100%" type="button">Přihlásit se</button>
 <div id="loginMsg" class="status hidden"></div>
 </section>
 <section id="app" class="hidden">
 <nav>
-<button onclick="showTab('home')">Přehled</button>
-<button onclick="showTab('candles')">Katalog svíček</button>
-<button onclick="showTab('materials')">Materiály</button>
-<button onclick="location.href='/nakupy.html'">Nákupy a sklad materiálu</button>
-<button onclick="showTab('batches')">Výroba a sklad svíček</button>
-<button class="secondary" onclick="signOut()">Odhlásit</button>
+<button type="button" data-tab="home">Přehled</button>
+<button type="button" data-tab="candles">Katalog svíček</button>
+<button type="button" data-tab="materials">Materiály</button>
+<button type="button" id="purchasesButton">Nákupy a sklad materiálu</button>
+<button type="button" data-tab="recipes">Receptury</button>
+<button type="button" data-tab="batches">Výroba a sklad svíček</button>
+<button type="button" id="logoutButton" class="secondary">Odhlásit</button>
 </nav>
 <div id="notice" class="status hidden"></div>
 <section id="tab-home">
@@ -37,7 +37,7 @@
 <div class="card"><div class="muted">Výrobní dávky</div><div class="price" id="countBatches">0</div></div>
 <div class="card"><div class="muted">Kusy na skladě</div><div class="price" id="stock">0</div></div>
 </div>
-<p class="muted">Nejprve přidej druhy svíček a materiály. Potom můžeš evidovat výrobu.</p>
+<p class="muted">Nejprve nastav receptury svíček a potom můžeš zaznamenat výrobu.</p>
 </section>
 <section id="tab-candles" class="hidden">
 <div class="card"><h2>Nová svíčka</h2>
@@ -63,23 +63,34 @@
 </form></div>
 <div class="card"><h2>Seznam materiálů</h2><div id="materialsList"></div></div>
 </section>
+<section id="tab-recipes" class="hidden">
+<div class="card">
+<h2>Receptura svíčky</h2>
+<p class="muted">Nastav množství každého materiálu na jeden kus svíčky. Uložením receptury se nemění sklad ani starší výroby.</p>
+<label>Vyber druh svíčky</label><select id="recipeCandleSelect"></select>
+<div id="recipeEditor" class="recipe-editor"></div>
+<div class="recipe-actions"><button type="button" id="addRecipeMaterial" class="secondary">Přidat materiál</button><button type="button" id="saveRecipe">Uložit recepturu</button></div>
+<div id="recipeMsg" class="status hidden"></div>
+</div>
+</section>
 <section id="tab-batches" class="hidden">
 <div class="card"><h2>Zaznamenat výrobu</h2>
 <form id="batchForm">
 <label>Druh svíčky</label><select name="candle_id" id="candleSelect" required></select>
+<div id="productionRecipe" class="recipe-editor"></div>
 <div class="grid">
 <div><label>Barva této dávky</label><input name="color" required placeholder="Např. krémová"></div>
-<div><label>Počet vyrobených kusů</label><input name="quantity" type="number" min="1" step="1" required></div>
+<div><label>Počet vyrobených kusů</label><input name="quantity" id="batchQuantity" type="number" min="1" step="1" required value="1"></div>
 <div><label>Datum výroby</label><input name="produced_at" type="date" required></div>
 <div><label>Čas výroby celé dávky (minuty)</label><input name="labor_minutes" type="number" min="0" step="1" value="0"></div>
 <div><label>Hodinová sazba práce (Kč)</label><input name="hourly_rate" type="number" min="0" step="1" value="240"></div>
 <div><label>Režie za hodinu (Kč)</label><input name="overhead_per_hour" type="number" min="0" step="1" value="0"></div>
-<div><label>Celkové materiálové náklady dávky (Kč)</label><input name="material_cost_total" type="number" min="0" step=".01" value="0"></div>
 </div>
+<div class="cost-summary" id="productionCost">Vyber svíčku s uloženou recepturou.</div>
 <label>Poznámka</label><textarea name="notes" rows="2"></textarea>
-<button style="margin-top:12px">Zapsat výrobu do skladu</button>
+<button style="margin-top:12px">Zkontrolovat a zapsat výrobu</button>
 </form>
-<p class="muted">Náklad na práci se rozdělí podle počtu kusů v dávce. Materiálové náklady zatím zadáváš za celou dávku.</p>
+<p class="muted">Při zápisu se uloží dávka, spotřeba materiálu a výdej ze skladu. Pokud některý zápis selže, aplikace zobrazí upozornění — nevytvářej stejnou dávku znovu, dokud stav nezkontrolujeme.</p>
 </div>
 <div class="card"><h2>Výrobní dávky a sklad</h2><div id="batchesList"></div></div>
 </section>
