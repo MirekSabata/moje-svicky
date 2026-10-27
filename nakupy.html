@@ -100,7 +100,17 @@ th,td{text-align:left;padding:10px;border-bottom:1px solid #eee2d8;font-size:14p
 const SUPABASE_URL = 'https://sixybdwllzehyijilzqq.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_y1LtelxOKUMEnVCq4SqybA__Tqrsq_8';
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-let materials=[],rows=0;
+let materials=[],rows=0,workshopId=null;
+
+async function loadWorkshop(){
+  const {data:{user},error:userError}=await db.auth.getUser();
+  if(userError) throw userError;
+  if(!user) throw new Error('Nejsi přihlášený.');
+  const {data,error}=await db.from('workshop_members')
+    .select('workshop_id').eq('user_id',user.id).limit(1).single();
+  if(error) throw error;
+  workshopId=data.workshop_id;
+}
 
 const $=id=>document.getElementById(id);
 const money=n=>Number(n||0).toLocaleString('cs-CZ',{style:'currency',currency:'CZK'});
@@ -156,7 +166,7 @@ async function addMaterial(){
  clearMsg();
  const name=$('newName').value.trim(),unit=$('newUnit').value,price=Number($('newPrice').value);
  if(!name||price<0){msg('Vyplň název a platnou cenu.');return}
- const {error}=await db.from('materials').insert({name,unit,price_per_unit:price});
+ const {error}=await db.from('materials').insert({workshop_id:workshopId,name,unit,price_per_unit:price});
  if(error){msg('Materiál se nepodařilo uložit: '+error.message);return}
  $('newName').value='';$('newPrice').value='0';
  await refresh();msg('Materiál byl uložen.');
@@ -177,13 +187,14 @@ async function savePurchase(){
   entries.push({material_id:materialId,quantity:qty,unit:opt.dataset.unit,unit_price:price,total_price:Math.round(qty*price*100)/100});
  }
  const {data:p,error:pe}=await db.from('purchases').insert({
+  workshop_id:workshopId,
   purchased_at:$('purchaseDate').value||new Date().toISOString().slice(0,10),
   supplier:$('supplier').value.trim()||null,
   document_number:$('documentNo').value.trim()||null,
   notes:$('purchaseNote').value.trim()||null
  }).select().single();
  if(pe){msg('Nákup se nepodařilo uložit: '+pe.message);return}
- const itemRows=entries.map(x=>({...x,purchase_id:p.id}));
+ const itemRows=entries.map(x=>({...x,purchase_id:p.id,workshop_id:workshopId}));
  const {data:saved,error:ie}=await db.from('purchase_items').insert(itemRows).select();
  if(ie){msg('Doklad byl vytvořen, ale položky se nepodařilo uložit. Nemaž ho; pošli mi tuto chybu: '+ie.message);return}
  const moves=saved.map(x=>({
